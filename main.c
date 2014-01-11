@@ -22,26 +22,51 @@
  */
 
 #define USER_AGENT "spotify_to_rdio"
-/* A simple stub that logs in and out */
 
-#include "main.h"
 #include <pthread.h>
 #include <sys/time.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "arraylist.h"
+#include "main.h"
+#include "uthash.h"
+
 sp_session *g_session;
 
 static int notify_events;
 static pthread_mutex_t notify_mutex;
 static pthread_cond_t notify_cond;
 
+struct s2r_playlist {
+  char *name;
+  struct array_list *tracks;
+  UT_hash_handle hh;
+};
+
+struct s2r_playlist *playlists = NULL;
+
+struct s2r_track {
+  char *title;
+  char *artist;
+  char *album;
+};
+
+void free_s2r_track(void *data)
+{
+  struct s2r_track *track = (struct s2r_track *)data;
+  free(track->title);
+  free(track->artist);
+  free(track->album);
+  free(track);
+}
+
 static void container_loaded(sp_playlistcontainer *pc, void *userdata);
 static void playlist_state_changed(sp_playlist *pl, void *userdata);
-
-static void connection_error(sp_session *session, sp_error error)
-{
-
-}
+static void logged_in(sp_session *session, sp_error error);
+static void connection_error(sp_session *session, sp_error error);
+static void logged_out(sp_session *session);
+static void log_message(sp_session *session, const char *data);
+void notify_main_thread(sp_session *session);
 
 static sp_playlistcontainer_callbacks pc_callbacks = {
 	.container_loaded = &container_loaded
@@ -49,6 +74,14 @@ static sp_playlistcontainer_callbacks pc_callbacks = {
 
 static sp_playlist_callbacks pl_callbacks = {
   .playlist_state_changed = &playlist_state_changed
+};
+
+static sp_session_callbacks callbacks = {
+	.logged_in = &logged_in,
+	.logged_out = &logged_out,
+	.connection_error = &connection_error,
+	.notify_main_thread = &notify_main_thread,
+	.log_message = &log_message
 };
 
 static void container_loaded(sp_playlistcontainer *pc, void *userdata)
@@ -67,7 +100,37 @@ static void playlist_state_changed(sp_playlist *pl, void *userdata)
 {
   if (sp_playlist_is_loaded(pl)) {
     const char *pl_name = sp_playlist_name(pl);
-    printf("Playlist: %s\n", pl_name);
+
+    // create pl_name in uthash
+
+    int num_tracks = sp_playlist_num_tracks(pl);
+
+    int i;
+    for (i = 0; i < num_tracks; i++) {
+      const char *title = NULL, *artist = NULL, *album = NULL;
+
+      sp_track *track = sp_playlist_track(pl, i);
+      title = sp_track_name(track);
+
+      sp_album *track_album = sp_track_album(track);
+      album = sp_album_name(track_album);
+
+      sp_artist *track_artist = sp_album_artist(track_album);
+      artist = sp_artist_name(track_artist);
+
+      /*struct s2r_track *trk = malloc(sizeof(struct s2r_track));*/
+      /*trk->title = malloc(strlen(title) + 1);*/
+      /*strcpy(trk->title, title);*/
+      /*trk->artist = malloc(strlen(artist) + 1);*/
+      /*strcpy(trk->artist, artist);*/
+      /*trk->album = malloc(strlen(album) + 1);*/
+      /*strcpy(trk->album, album);*/
+
+      // add to tracks in playlists
+
+      printf("Playlist (%d): %s, Track: %s - %s - %s\n",
+          num_tracks, pl_name, title, artist, album);
+    }
   }
 }
 
@@ -81,14 +144,16 @@ static void logged_in(sp_session *session, sp_error error)
 		exit(2);
 	}
 
-	sp_playlistcontainer_add_callbacks(
-		pc,
-		&pc_callbacks,
-		NULL);
+	sp_playlistcontainer_add_callbacks(pc, &pc_callbacks, NULL);
 
   sp_user *user = sp_session_user(session);
   const char *name = sp_user_canonical_name(user);
   printf("Logging in user: %s\n", name);
+}
+
+static void connection_error(sp_session *session, sp_error error)
+{
+
 }
 
 static void logged_out(sp_session *session)
@@ -118,17 +183,6 @@ void notify_main_thread(sp_session *session)
 	pthread_mutex_unlock(&notify_mutex);
 }
 
-static sp_session_callbacks callbacks = {
-	&logged_in,
-	&logged_out,
-	NULL,
-	&connection_error,
-	NULL,
-	&notify_main_thread,
-	NULL,
-	NULL,
-	&log_message
-};
 
 int spotify_init(const char *username,const char *password)
 {
@@ -236,5 +290,7 @@ int main(int argc, char **argv)
 
 		pthread_mutex_lock(&notify_mutex);
 	}
+
+  sp_session_logout(g_session);
 	return 0;
 }
