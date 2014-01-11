@@ -105,6 +105,8 @@ static void playlist_state_changed(sp_playlist *pl, void *userdata)
 
     int num_tracks = sp_playlist_num_tracks(pl);
 
+    /*printf("Playlist (%d): %s\n", num_tracks, pl_name);*/
+
     int i;
     for (i = 0; i < num_tracks; i++) {
       const char *title = NULL, *artist = NULL, *album = NULL;
@@ -118,19 +120,20 @@ static void playlist_state_changed(sp_playlist *pl, void *userdata)
       sp_artist *track_artist = sp_album_artist(track_album);
       artist = sp_artist_name(track_artist);
 
-      /*struct s2r_track *trk = malloc(sizeof(struct s2r_track));*/
-      /*trk->title = malloc(strlen(title) + 1);*/
-      /*strcpy(trk->title, title);*/
-      /*trk->artist = malloc(strlen(artist) + 1);*/
-      /*strcpy(trk->artist, artist);*/
-      /*trk->album = malloc(strlen(album) + 1);*/
-      /*strcpy(trk->album, album);*/
+      struct s2r_track *trk = malloc(sizeof(struct s2r_track));
+      trk->title = malloc(strlen(title) + 1);
+      strcpy(trk->title, title);
+      trk->artist = malloc(strlen(artist) + 1);
+      strcpy(trk->artist, artist);
+      trk->album = malloc(strlen(album) + 1);
+      strcpy(trk->album, album);
 
-      // add to tracks in playlists
+       // add to tracks in playlists
 
       printf("Playlist (%d): %s, Track: %s - %s - %s\n",
           num_tracks, pl_name, title, artist, album);
     }
+
   }
 }
 
