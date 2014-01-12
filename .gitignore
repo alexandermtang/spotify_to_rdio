@@ -3,3 +3,4 @@ spotify_to_rdio
 appkey.c
 spotify_appkey.key
 *.pyc
+keys.py
